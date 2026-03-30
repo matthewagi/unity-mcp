@@ -2,54 +2,92 @@
   <img src="https://img.shields.io/badge/Unity-2021.3%2B-black?logo=unity" alt="Unity 2021.3+"/>
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"/>
   <img src="https://img.shields.io/badge/MCP-Compatible-blue" alt="MCP Compatible"/>
-  <img src="https://img.shields.io/badge/Tools-20-orange" alt="20 Tools"/>
   <img src="https://img.shields.io/badge/C%23_Lines-5.7k-blueviolet" alt="5.7k Lines of C#"/>
   <img src="https://img.shields.io/badge/CPU_When_Idle-0%25-brightgreen" alt="0% CPU When Idle"/>
 </p>
 
-# Unity x Claude
+<h1 align="center">Unity x Claude</h1>
 
-> **Control Unity with natural language.** Ask Claude to create scripts, build scenes, tweak settings, or kick off builds — it talks directly to the Unity Editor.
-
-This plugin adds an MCP server inside Unity so Claude can see and modify everything in your project. It uses zero CPU when idle and responds instantly when Claude sends a command.
+<p align="center">
+  <strong>Control the Unity Editor with natural language.</strong><br/>
+  An MCP server that gives Claude 20 tools to create scripts, build scenes, modify components, manage assets, change settings, run builds, and execute C# — all from a conversation.
+</p>
 
 ---
 
-## Setup (3 minutes)
+## Features
 
-### Step 1 — Add the plugin to your Unity project
+**20 tools** covering every part of the Unity Editor:
 
-Download or clone this repo, then copy the files into your project's `Packages` folder:
+- **Scene control** — create, delete, duplicate, and inspect GameObjects. Read the full hierarchy with depth control, filter by tag or component.
+- **Component system** — add, remove, read, and modify any component. Batch-update multiple properties in a single call. Wire object references between components.
+- **Script generation** — create MonoBehaviours, ScriptableObjects, EditorWindows from templates. Modify existing scripts with find/replace, method injection, or full rewrites.
+- **Asset management** — search by name or type, create Materials, Prefabs, ScriptableObjects, Folders. Import and re-import assets.
+- **Project settings** — read and write Physics, Player, Quality, Audio, Time, Graphics, Input, Tags, Editor, and Navigation settings. All changes undoable.
+- **Build system** — build for Windows, macOS, Linux, WebGL, Android, or iOS. Development builds, custom BuildOptions.
+- **Editor commands** — play, pause, stop, step, save, undo, redo, compile, refresh. Run any Unity menu item.
+- **Live C# execution** — run arbitrary C# inside the editor with full access to UnityEngine and UnityEditor APIs. Compiled in-memory — no temp files, no domain reload, instant results.
+
+**Built for performance:**
+
+- **Zero CPU when idle** — single background thread blocked on `Socket.Poll`. No async, no ThreadPool, no polling loops, no timers.
+- **Survives domain reloads** — auto-restarts after script recompilation via `[InitializeOnLoad]`. 5-second safety net ensures the server is always running.
+- **Pure C#** — no external dependencies, no DLLs, no NuGet packages. Just drop the folder into your project.
+
+**Built for safety:**
+
+- **Everything is undoable** — all destructive operations go through Unity's Undo system. Ctrl+Z works on every change Claude makes.
+- **Dangerous operations blocked** — `execute_csharp` blocks `Process.Start`, `Environment.Exit`, `Registry.*`, and other unsafe calls.
+- **Port cleanup** — server registers `ProcessExit` and `DomainUnload` handlers so the port is always released.
+
+**Built for testing:**
+
+- **Runtime data during Play mode** — component queries automatically include live position, rotation, velocity, and sleep state for physics objects.
+- **Screenshot verification** — capture what the camera sees, describe visible objects with screen positions, simulate clicks on objects.
+- **Smart snapshots** — schedule timed screenshots at animation keyframes to verify visual behavior with minimum captures.
+
+**Works with:**
+
+- Claude Desktop (via stdio bridge)
+- Claude Code (direct HTTP)
+- Cursor (direct HTTP)
+- Any MCP-compatible client
+
+---
+
+## Installation
+
+### Step 1 — Add to your Unity project
+
+Clone this repo (or download ZIP) and copy everything into your project's `Packages` folder:
 
 ```
 YourProject/
   Packages/
-    com.claude.unity-mcp/       ← put everything here
+    com.claude.unity-mcp/       ← put it here
       Editor/
       package.json
       mcp-bridge.mjs
 ```
 
-Open Unity. You should see this in the console:
+Open Unity. The console should show:
 
 ```
 [MCP] Ready on port 9999
 ```
 
-You can also check **Window > Claude MCP** — it shows the server status.
+> Verify at **Window > Claude MCP** — shows server status, port, and all available tools.
 
-### Step 2 — Tell Claude where to find Unity
+### Step 2 — Connect Claude
 
-You need to add a few lines to Claude's config file so it knows how to connect.
+Open your Claude config file:
 
-**Find your config file:**
-
-| OS | Location |
+| OS | Path |
 |---|---|
 | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 
-**Add this to the file** (create it if it doesn't exist):
+Add this (create the file if it doesn't exist):
 
 ```json
 {
@@ -64,177 +102,117 @@ You need to add a few lines to Claude's config file so it knows how to connect.
 }
 ```
 
-> **💡 Easy way:** In Unity, go to **Window > Claude MCP** and click **Copy Config**. It gives you the JSON with the correct path already filled in. Just paste it into the config file.
+> **Shortcut:** In Unity, click **Window > Claude MCP > Copy Config** — it copies the JSON with the correct path. Just paste it into the file.
 
-**Using Claude Code or Cursor?** These support direct HTTP — just point to:
+<details>
+<summary>Using Claude Code or Cursor instead?</summary>
+
+These support direct HTTP — no bridge needed:
+
+```json
+{
+  "mcpServers": {
+    "unity": {
+      "url": "http://localhost:9999/mcp"
+    }
+  }
+}
 ```
-http://localhost:9999/mcp
-```
+</details>
 
-### Step 3 — Give Claude the skill files (important!)
+### Step 3 — Add the skill files
 
-Without this step, Claude can connect to Unity but won't know the best way to use the tools — property paths, workarounds, testing patterns, etc. The skill files teach Claude everything.
+This is what makes Claude actually good at using the tools. Without these files, Claude can connect but won't know property paths, workarounds, batch patterns, or testing workflows.
 
-**For Claude Desktop / Cowork:**
-
-Copy `SKILL.md` and `WORKFLOW.md` into your Claude skills folder:
+Copy `SKILL.md` and `WORKFLOW.md` into Claude's skills folder:
 
 ```bash
-# macOS
+# macOS / Linux
 mkdir -p ~/.claude/skills/unity-x-claude
 cp SKILL.md WORKFLOW.md ~/.claude/skills/unity-x-claude/
 ```
 
-```bash
+```powershell
 # Windows (PowerShell)
 mkdir -Force "$env:USERPROFILE\.claude\skills\unity-x-claude"
 copy SKILL.md, WORKFLOW.md "$env:USERPROFILE\.claude\skills\unity-x-claude\"
 ```
 
-**For Claude Code / Cursor:**
+<details>
+<summary>Using Claude Code or Cursor?</summary>
 
-Copy them into your project's `.claude/skills/` folder:
+Put them in your project's `.claude/skills/` folder instead:
 
 ```bash
 mkdir -p YourProject/.claude/skills/unity-x-claude
 cp SKILL.md WORKFLOW.md YourProject/.claude/skills/unity-x-claude/
 ```
+</details>
 
-> **What do these files do?**
-> - **SKILL.md** — Teaches Claude all 20 tools, common workflows, property paths for every component, and how to batch operations efficiently
-> - **WORKFLOW.md** — Teaches Claude the setup architecture, known gotchas with workarounds, how to test with screenshots during Play mode, and how to handle domain reloads
+**What these files teach Claude:**
 
-### Step 4 — Restart Claude and test
+| File | What Claude learns |
+|------|-------------------|
+| `SKILL.md` | All 20 tools with usage patterns, property paths for every common component (Transform, Rigidbody, Collider, Camera, Light, AudioSource), batch operation patterns, depth strategies, settings categories |
+| `WORKFLOW.md` | Architecture, known gotchas with workarounds, runtime data inspection, screenshot testing pipeline, domain reload handling, port conflict recovery, safe C# execution patterns |
 
-Restart Claude Desktop (or start a new chat). Then try asking:
+### Step 4 — Restart and test
+
+Restart Claude Desktop (or start a new chat). Try:
 
 - *"What's in my Unity scene?"*
-- *"Create a red cube at position 0, 3, 0"*
-- *"Add a Rigidbody to the player"*
+- *"Create a red cube at position 0, 3, 0 with a Rigidbody"*
+- *"Change the gravity to -20 and set the quality level to Ultra"*
 
-If Claude responds with your scene data, you're connected and ready to go!
-
----
-
-## What can Claude do?
-
-Once set up, Claude has **20 tools** to control Unity. Here's what you can ask for:
-
-### 🎮 Scene & Objects
-- Create, delete, duplicate GameObjects
-- Read the full scene hierarchy
-- Set transforms, tags, layers
-
-### 🧩 Components
-- Add/remove any component (Rigidbody, Collider, AudioSource, etc.)
-- Read and modify any property on any component
-- Batch-update multiple properties at once
-
-### 📝 Scripts
-- Create new C# scripts (MonoBehaviour, ScriptableObject, etc.)
-- Modify existing scripts — find/replace, add methods, full rewrites
-
-### 📦 Assets
-- Search assets by name or type
-- Create Materials, Prefabs, ScriptableObjects, Folders
-- Import and re-import assets
-
-### ⚙️ Editor & Settings
-- Play, pause, stop, save, undo, redo
-- Read and change project settings (Physics, Quality, Player, etc.)
-- Control the Scene View camera
-
-### 🔨 Build & Packages
-- Build for any platform (Windows, macOS, WebGL, Android, iOS)
-- Add/remove Unity packages
-- Read console logs and errors
-
-### 💻 Code Execution
-- Run arbitrary C# code inside the editor — full access to UnityEngine and UnityEditor APIs
+If Claude responds with your scene data, you're done.
 
 ---
 
-## Full Documentation
+## Tool Reference
 
-| Guide | What's in it |
-|-------|-------------|
-| **[SKILL.md](SKILL.md)** | Tool reference, common workflows, property path cheatsheet, depth strategy tips |
-| **[WORKFLOW.md](WORKFLOW.md)** | Architecture deep-dive, known gotchas + workarounds, runtime testing pipeline, screenshot verification, domain reload handling |
+| Category | Tools | Examples |
+|----------|-------|---------|
+| **Scene** | `get_scene`, `create_gameobject`, `delete`, `duplicate` | Read hierarchy, spawn objects with components, clone objects |
+| **Components** | `get_components`, `set_property`, `add_component`, `remove_component` | Inspect properties, batch-update 10+ values, wire references |
+| **Scripts** | `create_script`, `modify_script` | Generate MonoBehaviours, find/replace in code, add methods |
+| **Assets** | `search_assets`, `get_asset`, `create_asset`, `import_asset` | Find materials, create prefabs, re-import textures |
+| **Editor** | `editor_command`, `get_selection`, `set_selection`, `scene_view` | Play/stop, save, undo, frame camera on object |
+| **Settings** | `get_settings`, `set_settings` | Read/write Physics, Player, Quality, Audio, Time, Graphics |
+| **Build** | `build`, `manage_packages`, `get_console` | Build for any platform, add packages, read errors |
+| **Code** | `execute_csharp` | Run any C# with full Unity API access, in-memory compilation |
 
----
-
-## Troubleshooting
-
-**Claude says "Cannot connect to Unity"**
-→ Make sure Unity is open and **Window > Claude MCP** shows "Running"
-→ Check that nothing else is using port 9999
-
-**Server not starting**
-→ Open **Window > Claude MCP** and make sure the toggle is enabled
-→ It auto-starts on every domain reload — try recompiling (Ctrl+R)
-
-**Wrong project path**
-→ The path in your Claude config must point to the **currently open** Unity project
-→ Use **Window > Claude MCP > Copy Config** to get the correct path
-
-**Node.js not found**
-→ Make sure Node.js is installed: `node --version` in terminal
-→ The bridge script (`mcp-bridge.mjs`) needs Node to translate between Claude and Unity
-
-**Port conflict**
-→ Go to **Window > Claude MCP > Advanced Settings** and change the port
-→ Update your Claude config to match
+> All tools are prefixed with `unity_` (e.g., `unity_get_scene`). See [SKILL.md](SKILL.md) for the full reference with property paths and workflow patterns.
 
 ---
 
-## How it works
+## Architecture
 
 ```
 Claude Desktop / Claude Code / Cursor
         |
-        | stdio (JSON-RPC)
+        | stdio (JSON-RPC 2.0)
         v
-  mcp-bridge.mjs          ← Node.js translates between Claude and Unity
+  mcp-bridge.mjs             Node.js — translates stdio ↔ HTTP
         |
-        | HTTP to localhost:9999
+        | HTTP POST localhost:9999/mcp
         v
-  Unity Editor             ← MCP server runs inside the editor process
+  Unity Editor (MCPServer)
         |
-        |── 20 tool handlers (scripts, scenes, components, assets, etc.)
-        |── Background thread with Socket.Poll (zero CPU when idle)
-        |── Main thread dispatcher (safe Unity API access)
+        ├── StreamableHttpServer    Raw TcpListener, single thread, Socket.Poll
+        ├── MainThreadDispatcher    ConcurrentQueue → EditorApplication.update
+        ├── JsonRpcHandler          JSON-RPC 2.0 parsing
+        ├── 8 Tool modules          Scene, Component, Asset, Script, Editor, Settings, Build, Execute
+        └── Serialization           GameObject → JSON, Asset → JSON, Property helpers
 ```
 
-The server sleeps until Claude sends a request. No polling loops, no timers, no background tasks eating CPU.
+### Why zero CPU when idle
 
----
-
-## File Structure
-
-```
-com.claude.unity-mcp/
-  package.json              Unity package manifest
-  mcp-bridge.mjs            Node.js stdio-to-HTTP bridge
-  Editor/
-    MCPServer.cs             Main server — start/stop/restart, tool routing
-    Communication/
-      StreamableHttpServer   TCP listener (single thread, Socket.Poll)
-      MainThreadDispatcher   Background → main thread queue
-      JsonRpcHandler         JSON-RPC 2.0 parsing
-      MiniJson               Lightweight JSON (zero dependencies)
-    Tools/
-      ScriptTools            Create / modify C# scripts
-      SceneTools             Scene hierarchy operations
-      ComponentTools         Component CRUD + runtime data
-      AssetTools             Asset search / create / import
-      EditorTools            Editor commands, selection, scene view
-      SettingsTools          Project settings read/write
-      BuildTools             Build, packages, console
-      ExecuteTools           Run arbitrary C# in-editor
-    Serialization/           GameObject, Asset, Property serializers
-    UI/                      Status window (Window > Claude MCP)
-    Utils/                   Undo helper, instance tracker
-```
+| Component | Idle behavior |
+|-----------|--------------|
+| `StreamableHttpServer` | Thread blocked on `Socket.Poll(1s)` — true kernel wait, zero CPU |
+| `MainThreadDispatcher` | `ConcurrentQueue.TryDequeue` returns false — single boolean check per frame |
+| `MCPServer.Tick()` | One `EditorApplication.update` callback — nanosecond cost when empty |
+| Status Window | No continuous repaint — updates only on interaction |
 
 ---
 
@@ -242,19 +220,31 @@ com.claude.unity-mcp/
 
 | | Supported |
 |---|---|
-| **Unity** | 2021.3+ (tested on Unity 6.0) |
+| **Unity** | 2021.3 LTS and newer (tested on Unity 6.0) |
 | **Render Pipeline** | URP, HDRP, Built-in |
 | **OS** | macOS, Windows |
-| **MCP Clients** | Claude Desktop, Claude Code, Cursor, or any MCP client |
+| **MCP Clients** | Claude Desktop, Claude Code, Cursor, or any MCP-compatible client |
+| **Node.js** | Required for stdio bridge (Claude Desktop). Not needed for direct HTTP clients. |
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Claude can't connect | Make sure Unity is open and **Window > Claude MCP** shows "Running" |
+| Server not starting | Enable the toggle in **Window > Claude MCP**, or recompile (Ctrl+R) |
+| Wrong project path | Use **Window > Claude MCP > Copy Config** to get the correct path |
+| Node.js not found | Install Node.js — the bridge needs it: `node --version` |
+| Port 9999 in use | Change port in **Window > Claude MCP > Advanced Settings**, update config to match |
+| Calls fail after recompile | Normal — server restarts in 2-5 seconds. Just retry. |
 
 ---
 
 ## Contributing
 
-Pull requests welcome! If you add a new tool, follow the pattern in `Editor/Tools/`. Update `SKILL.md` with usage examples and `WORKFLOW.md` if there are gotchas.
-
----
+Pull requests welcome. If you add a new tool, follow the pattern in `Editor/Tools/` and update `SKILL.md` with usage examples.
 
 ## License
 
-[MIT](LICENSE) — use it however you want.
+[MIT](LICENSE)
